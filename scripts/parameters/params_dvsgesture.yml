@@ -1,8 +1,8 @@
 Nhid:
-- 16
-- 24
+- 1
 Mhid:
-- 128
+- 200
+- 200
 alpha:
 - 0.97
 alpharp:
@@ -30,8 +30,8 @@ loss: smoothL1
 lr_drop_factor: 5
 lr_drop_interval: 500
 num_epochs: 40
-num_conv_layers: 2
-num_mlp_layers: 1
+num_conv_layers: 0
+num_mlp_layers: 2
 num_layers: 3
 num_dl_workers: 4
 optimizer: adamax

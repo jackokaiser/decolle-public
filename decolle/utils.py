@@ -95,6 +95,36 @@ def load_model_from_checkpoint(checkpoint_dir, net, opt, device='cuda'):
         print('Resuming from epoch {}'.format(starting_epoch))
     return starting_epoch
 
+def erbp_loss(s, r, u, target, loss_fn, net, reg_l = None, sum_=True, loss_mask=1.):
+    uflat = u[-1].reshape(u[-1].shape[0],-1)
+    if reg_l is None:
+        reg_l = [0]
+    reg1_loss = reg_l[-1]*1e-2*((relu(uflat+.01)*loss_mask)).mean()
+    reg2_loss = reg_l[-1]*6e-5*relu((loss_mask*(.1-sigmoid(uflat))).mean())
+    loss_tv = loss_fn(r[-1]*loss_mask, target*loss_mask) + reg1_loss + reg2_loss
+    return loss_tv
+
+
+fa_weights = None
+
+def erbp_gradients(loss_tv, net):
+    global fa_weights
+    b_min, b_max = -0.5, 0.5
+    weights = net.get_trainable_parameters()
+
+    if fa_weights is None:
+        fa_weights = [None] * len(net.LIF_layers)
+    with torch.no_grad():
+        for i, layer in enumerate(net.LIF_layers):
+            U = layer.base_layer(layer.state.P) + layer.state.R
+            post_mask = (b_min < U) & (U < b_max)
+            weights = next(layer.base_layer.parameters())
+            if fa_weights[i] is None:
+                device = net.get_input_layer_device()
+                fa_weights[i] = torch.rand(loss_tv.shape[1], weights.shape[0]).to(device)
+            fa_errors = torch.mm(loss_tv, fa_weights[i])
+            weights._grad = torch.mm(layer.state.P.T, post_mask * fa_errors).T / loss_tv.shape[0]
+
 
 def decolle_loss(s, r, u, target, loss_fn, net, reg_l = None, sum_=True, loss_mask=1.):
     loss_tv = [0 for _ in range(len(net))]
@@ -131,8 +161,13 @@ def train(gen_train, loss, net, opt, epoch, burnin, reg_l=None):
         t_sample = data_batch.shape[1]
         for k in tqdm(range(t_sample), desc='Epoch {}'.format(epoch)):
             s, r, u = net.forward(data_batch[:, k, :, :])
-            loss_tv = decolle_loss(s, r, u, loss_fn = loss, net = net, reg_l = reg_l, target=target_batch[:,k,:], loss_mask = loss_mask[:,k,:])
-            loss_tv.backward()
+
+            raw_loss_tv = erbp_loss(s, r, u, loss_fn = loss, net = net, reg_l = reg_l, target=target_batch[:,k,:], loss_mask = loss_mask[:,k,:])
+            erbp_gradients(raw_loss_tv, net)
+            loss_tv = raw_loss_tv.mean()
+
+            # loss_tv = decolle_loss(s, r, u, loss_fn = loss, net = net, reg_l = reg_l, target=target_batch[:,k,:], loss_mask = loss_mask[:,k,:])
+            # loss_tv.backward()
             opt.step()
             opt.zero_grad()
             for i in range(len(net)):
@@ -172,7 +207,8 @@ def test(gen_test, loss, net, burnin, print_error=True):
             print('--------------Testing---------------')
             for k in tqdm(range(timesteps), desc='Testing'):
                 s, r, u = net.forward(data_batch[:, k, :, :])
-                test_loss_tv = decolle_loss(s,r,u, target=target_batch[:,k], loss_fn=loss, net=net, sum_ = False)
+                # test_loss_tv = decolle_loss(s,r,u, target=target_batch[:,k], loss_fn=loss, net=net, sum_ = False)
+                test_loss_tv = erbp_loss(s,r,u, target=target_batch[:,k], loss_fn=loss, net=net, sum_ = False).mean().repeat(len(net))
                 test_loss += [tonp(x) for x in test_loss_tv]
                 for n in range(len(net)):
                     r_cum[n,k,:,:-1] += tonp(sigmoid(r[n]))*target_mask[:,k]
