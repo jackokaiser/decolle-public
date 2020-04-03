@@ -100,11 +100,17 @@ def decolle_loss(s, r, u, target, loss_fn, net, reg_l = None, sum_=True, loss_ma
     loss_tv = [0 for _ in range(len(net))]
     if reg_l is None: 
         reg_l = [0 for _ in range(len(net))]
+
+    network_loss = loss_fn(r[-1]*loss_mask, target*loss_mask)
+    
     for i in range(len(net)):
         uflat = u[i].reshape(u[i].shape[0],-1)
         reg1_loss = reg_l[i]*1e-2*((relu(uflat+.01)*loss_mask)).mean()
         reg2_loss = reg_l[i]*6e-5*relu((loss_mask*(.1-sigmoid(uflat))).mean())
-        loss_tv[i] += loss_fn(r[i]*loss_mask, target*loss_mask) + reg1_loss + reg2_loss
+        local_loss = loss_fn(r[i]*loss_mask, target*loss_mask)
+        with torch.no_grad():
+            local_loss.set_(network_loss)
+        loss_tv[i] += local_loss + reg1_loss + reg2_loss
     if sum_:
         return sum(loss_tv)
     else:
