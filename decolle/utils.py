@@ -109,7 +109,9 @@ def decolle_loss(s, r, u, target, loss_fn, net, reg_l = None, sum_=True, loss_ma
         reg2_loss = reg_l[i]*6e-5*relu((loss_mask*(.1-sigmoid(uflat))).mean())
         local_loss = loss_fn(r[i]*loss_mask, target*loss_mask)
         with torch.no_grad():
+            # artifically set (output - target)^2 to network output
             local_loss.set_(network_loss)
+        local_loss = local_loss.mean()
         loss_tv[i] += local_loss + reg1_loss + reg2_loss
     if sum_:
         return sum(loss_tv)

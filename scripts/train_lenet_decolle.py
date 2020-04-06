@@ -65,7 +65,7 @@ if hasattr(params['learning_rate'], '__len__'):
     opt = MultiOpt(*opts)
 else:
     opt = torch.optim.Adamax(net.get_trainable_parameters(), lr=params['learning_rate'], betas=params['betas'])
-loss = torch.nn.SmoothL1Loss()
+loss = torch.nn.SmoothL1Loss(reduction='none')
 
 ##Resume if necessary
 if args.resume_from is not None:
