@@ -23,7 +23,7 @@ All parameter sets are contained in scripts/parameters
 ## Authors
 
 * **Emre Neftci** - *Initial work* - [eneftci](https://github.com/eneftci)
-* **Jacques Kaiser** - [jkaiser](https://github.com/jkaiser)
+* **Jacques Kaiser** - [jackokaiser](https://github.com/jackokaiser)
 * **Massi Iacono** - [miacono](https://github.com/miacono)
 
 ## License
