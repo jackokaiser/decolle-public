@@ -44,7 +44,6 @@ reg_l:
 - .0
 - .5
 - .5
-- .5
 test_interval: 1
 init_theta: 
 - 5.e-5

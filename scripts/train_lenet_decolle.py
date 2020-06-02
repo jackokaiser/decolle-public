@@ -9,7 +9,7 @@
 # Copyright : (c) UC Regents, Emre Neftci
 # Licence : GPLv2
 #----------------------------------------------------------------------------- 
-from decolle.lenet_decolle_model import LenetDECOLLE, DECOLLELoss, LIFLayerVariableTau, LIFLayer
+from decolle.lenet_decolle_model import LenetDECOLLE, DECOLLELoss, CRBPLoss, LIFLayerVariableTau, LIFLayer
 from decolle.utils import parse_args, train, test, accuracy, save_checkpoint, load_model_from_checkpoint, prepare_experiment, write_stats
 import datetime, os, socket, tqdm
 import numpy as np
@@ -40,7 +40,8 @@ gen_train, gen_test = create_data(chunk_size_train=params['chunk_size_train'],
                                   chunk_size_test=params['chunk_size_test'],
                                   batch_size=params['batch_size'],
                                   dt=params['deltat'],
-                                  num_workers=4)
+                                  num_workers=4,
+                                  n_events_attention=params['n_events_attention'] if 'n_events_attention' in params else None                              )
 
 data_batch, target_batch = next(iter(gen_train))
 data_batch = torch.Tensor(data_batch).to(device)
@@ -73,8 +74,13 @@ if hasattr(params['learning_rate'], '__len__'):
     opt = MultiOpt(*opts)
 else:
     opt = torch.optim.Adamax(net.get_trainable_parameters(), lr=params['learning_rate'], betas=params['betas'])
-loss = torch.nn.SmoothL1Loss()
-decolle_loss = DECOLLELoss(net = net, loss_fn = loss, reg_l=None)
+
+if 'loss_scope' in params and params['loss_scope']=='erbp':
+    loss = torch.nn.SmoothL1Loss(reduction='none')
+    decolle_loss = ERBPLoss(net = net, loss_fn = loss, reg_l=reg_l)
+else:
+    loss = torch.nn.SmoothL1Loss()
+    decolle_loss = DECOLLELoss(net = net, loss_fn = loss, reg_l=reg_l)
 
 ##Resume if necessary
 if args.resume_from is not None:

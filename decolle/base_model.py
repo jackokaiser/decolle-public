@@ -369,3 +369,36 @@ class DECOLLELoss(object):
             return loss_tv
 
 
+class CRBPLoss(object):
+    def __init__(self, loss_fn, net, reg_l = None, sum_=True):
+        self.loss_fn = loss_fn
+        self.nlayers = len(net)
+        self.reg_l = reg_l
+        if self.reg_l is None:
+            self.reg_l = [0 for _ in range(self.nlayers)]
+        self.sum_ = sum_
+
+    def __len__(self):
+        return self.nlayers
+
+    def __call__(self, s, r, u, target, mask=1, sum_=True):
+        network_loss = self.loss_fn(r[-1]*mask, target*mask)
+        loss_tv = []
+        for i in range(self.nlayers):
+            uflat = u[i].reshape(u[i].shape[0],-1)
+            if i == (self.nlayers - 1):
+                # last layer
+                local_loss = network_loss
+            else:
+                local_loss = r[i]*mask * (network_loss.detach())
+            loss_tv.append(local_loss.mean())
+            if self.reg_l[i]>0:
+                reg1_loss = self.reg_l[i]*1e-2*((torch.relu(uflat+.01)*mask)).mean()
+                reg2_loss = self.reg_l[i]*6e-5*torch.relu((mask*(.1-sigmoid(uflat))).mean())
+                loss_tv[-1] += reg1_loss + reg2_loss
+        if sum_:
+            return sum(loss_tv)
+        else:
+            return loss_tv
+
+
